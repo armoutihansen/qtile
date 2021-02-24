@@ -33,6 +33,12 @@ class GenPollText(base.ThreadPoolText):
             return "You need a poll function"
         return self.func()
 
+    def tick(self):
+        self.update(self.poll())
+        return self.update_interval
+
+    def cmd_tick(self):
+        self.tick()
 
 class GenPollUrl(base.ThreadPoolText):
     """A generic text widget that polls an url and parses it using parse function"""
@@ -91,3 +97,10 @@ class GenPollUrl(base.ThreadPoolText):
             text = "Can't parse"
 
         return text
+
+    def tick(self):
+        self.update(self.poll())
+        return self.update_interval
+
+    def cmd_tick(self):
+        self.tick()
