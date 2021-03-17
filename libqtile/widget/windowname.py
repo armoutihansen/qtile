@@ -33,6 +33,7 @@ class WindowName(base._TextBox):
     orientations = base.ORIENTATION_HORIZONTAL
     defaults = [
         ('for_current_screen', False, 'instead of this bars screen use currently active screen'),
+        ('only_current_screen', False, 'instead of this bars screen use currently active screen'),
         ('empty_group_string', ' ', 'string to display when no windows are focused on current group'),
         ('max_chars', 0, 'max chars before truncating with ellipsis'),
         ('format', '{state}{name}', 'format of the text'),
@@ -60,7 +61,12 @@ class WindowName(base._TextBox):
         return (text[:self.max_chars - 3].rstrip() + "...") if len(text) > self.max_chars else text
 
     def update(self, *args):
-        if self.for_current_screen:
+        if self.only_current_screen:
+            if self.qtile.current_screen == self.bar.screen:
+                w = self.bar.screen.group.current_window
+            else:
+                w = None
+        elif self.for_current_screen:
             w = self.qtile.current_screen.group.current_window
         else:
             w = self.bar.screen.group.current_window
