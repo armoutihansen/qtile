@@ -24,6 +24,7 @@ import logging
 import os
 import pickle
 import shlex
+import shutil
 import signal
 import subprocess
 import tempfile
@@ -195,6 +196,9 @@ class Qtile(CommandObject):
         self.update_net_desktops()
         hook.subscribe.setgroup(self.update_net_desktops)
 
+        if self.config.reconfigure_screens:
+            hook.subscribe.screen_change(self.cmd_reconfigure_screens)
+
         hook.fire("startup_complete")
 
     def _prepare_socket_path(
@@ -236,7 +240,7 @@ class Qtile(CommandObject):
             async with LoopContext({
                 signal.SIGTERM: self.stop,
                 signal.SIGINT: self.stop,
-                signal.SIGHUP: self.restart,
+                signal.SIGHUP: self.stop,
             }), ipc.Server(
                 self._prepare_socket_path(self.socket_path),
                 self.server.call,
@@ -299,6 +303,7 @@ class Qtile(CommandObject):
             self.screens.append(s)
 
     def _process_screens(self) -> None:
+        self.screens = []
         if hasattr(self.config, 'fake_screens'):
             self._process_fake_screens()
             return
@@ -325,6 +330,23 @@ class Qtile(CommandObject):
             scr._configure(self, i, x, y, w, h, grp)
             self.screens.append(scr)
 
+    def cmd_reconfigure_screens(self, ev=None):
+        """
+        This can be used to set up screens again during run time. Intended usage is to
+        be called when the screen_change hook is fired, responding to changes in
+        physical monitor setup by configuring qtile.screens accordingly. The ev kwarg is
+        ignored; it is here in case this function is hooked directly to screen_change.
+        """
+        logger.info("Reconfiguring screens.")
+        self._process_screens()
+
+        for group in self.groups:
+            if group.screen:
+                if group.screen in self.screens:
+                    group.layout_all()
+                else:
+                    group.hide()
+
     def paint_screen(self, screen, image_path, mode=None):
         self.core.painter.paint(screen, image_path, mode)
 
@@ -346,7 +368,7 @@ class Qtile(CommandObject):
                         logger.error("KB command error %s: %s" % (cmd.name, val))
             else:
                 if self.current_chord is True or (self.current_chord and key.key == "Escape"):
-                    self.ungrab_chord()
+                    self.cmd_ungrab_chord()
                 return
 
     def grab_keys(self) -> None:
@@ -382,7 +404,7 @@ class Qtile(CommandObject):
         for key in chord.submapings:
             self.grab_key(key)
 
-    def ungrab_chord(self) -> None:
+    def cmd_ungrab_chord(self) -> None:
         self.current_chord = False
         hook.fire("leave_chord")
 
@@ -1138,14 +1160,19 @@ class Qtile(CommandObject):
 
             spawn(["xterm", "-T", "Temporary terminal"])
         """
-        if shell:
-            if not isinstance(cmd, str):
-                cmd = subprocess.list2cmdline(cmd)
-            args = ["/bin/sh", "-c", cmd]
-        elif isinstance(cmd, str):
+        if isinstance(cmd, str):
             args = shlex.split(cmd)
         else:
             args = list(cmd)
+            cmd = subprocess.list2cmdline(args)
+
+        to_lookup = args[0]
+        if shell:
+            args = ["/bin/sh", "-c", cmd]
+
+        if shutil.which(to_lookup) is None:
+            logger.error("couldn't find `{}`".format(to_lookup))
+            return -1
 
         r, w = os.pipe()
         pid = os.fork()
@@ -1197,8 +1224,9 @@ class Qtile(CommandObject):
 
                 try:
                     os.execvp(args[0], args)
-                except OSError as e:
-                    logger.error("failed spawn: \"{0}\"\n{1}".format(cmd, e))
+                except OSError:
+                    # can't log here since we forked :(
+                    pass
 
                 os._exit(1)
             else:

@@ -341,7 +341,8 @@ class _TextBox(_Widget):
             "font shadow color, default is None(no shadow)"
         ),
         ("markup", True, "Whether or not to use pango markup"),
-        ("fmt", "{}", "How to format the text")
+        ("fmt", "{}", "How to format the text"),
+        ('max_chars', 0, 'Maximum number of characters to display in widget.'),
     ]  # type: List[Tuple[str, Any, str]]
 
     def __init__(self, text=" ", width=bar.CALCULATED, **config):
@@ -423,9 +424,14 @@ class _TextBox(_Widget):
         else:
             return 0
 
+    def can_draw(self):
+        can_draw = self.layout is not None \
+                and not self.layout.finalized() \
+                and self.offsetx is not None  # if the bar hasn't placed us yet
+        return can_draw
+
     def draw(self):
-        # if the bar hasn't placed us yet
-        if self.offsetx is None:
+        if not self.can_draw():
             return
         self.drawer.clear(self.background or self.bar.background)
         self.layout.draw(
@@ -453,6 +459,24 @@ class _TextBox(_Widget):
         d['foreground'] = self.foreground
         d['text'] = self.formatted_text
         return d
+
+    def update(self, text):
+        if self.text == text:
+            return
+        if text is None:
+            text = ""
+
+        old_width = self.layout.width
+        if len(text) > self.max_chars > 0:
+            text = text[:self.max_chars] + "…"
+        self.text = text
+
+        # If our width hasn't changed, we just draw ourselves. Otherwise,
+        # we draw the whole bar.
+        if self.layout.width == old_width:
+            self.draw()
+        else:
+            self.bar.draw()
 
 
 class InLoopPollText(_TextBox):
@@ -502,17 +526,6 @@ class InLoopPollText(_TextBox):
         text = self.poll()
         self.update(text)
 
-    def update(self, text):
-        old_width = self.layout.width
-        if self.text != text:
-            self.text = text
-            # If our width hasn't changed, we just draw ourselves. Otherwise,
-            # we draw the whole bar.
-            if self.layout.width == old_width:
-                self.draw()
-            else:
-                self.bar.draw()
-
 
 class ThreadPoolText(_TextBox):
     """ A common interface for wrapping blocking events which when triggered
@@ -558,18 +571,6 @@ class ThreadPoolText(_TextBox):
 
         future = self.qtile.run_in_executor(self.poll)
         future.add_done_callback(on_done)
-
-    def update(self, text):
-        old_width = self.layout.width
-        if self.text == text:
-            return
-
-        self.text = text
-
-        if self.layout.width == old_width:
-            self.draw()
-        else:
-            self.bar.draw()
 
     def poll(self):
         pass

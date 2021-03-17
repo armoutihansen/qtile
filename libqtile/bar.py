@@ -164,6 +164,7 @@ class Bar(Gap, configurable.Configurable):
         self.saved_focus = None
         self.cursor_in = None
         self.window = None
+        self.size_calculated = 0
 
         self.queued_draws = 0
 
@@ -398,6 +399,8 @@ class Bar(Gap, configurable.Configurable):
             self.saved_focus.window.set_input_focus()
 
     def draw(self):
+        if not self.widgets:
+            return
         if self.queued_draws == 0:
             self.qtile.call_soon(self._actual_draw)
         self.queued_draws += 1
@@ -407,13 +410,12 @@ class Bar(Gap, configurable.Configurable):
         self._resize(self.length, self.widgets)
         for i in self.widgets:
             i.draw()
-        if self.widgets:
-            end = i.offset + i.length
-            if end < self.length:
-                if self.horizontal:
-                    self.drawer.draw(offsetx=end, width=self.length - end)
-                else:
-                    self.drawer.draw(offsety=end, height=self.length - end)
+        end = i.offset + i.length
+        if end < self.length:
+            if self.horizontal:
+                self.drawer.draw(offsetx=end, width=self.length - end)
+            else:
+                self.drawer.draw(offsety=end, height=self.length - end)
 
     def info(self):
         return dict(
@@ -432,9 +434,10 @@ class Bar(Gap, configurable.Configurable):
     def show(self, is_show=True):
         if is_show != self.is_show():
             if is_show:
-                self.size = self.initial_size
+                self.size = self.size_calculated
                 self.window.unhide()
             else:
+                self.size_calculated = self.size
                 self.size = 0
                 self.window.hide()
             self.screen.group.layout_all()

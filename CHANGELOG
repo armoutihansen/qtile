@@ -1,11 +1,23 @@
 Qtile 0.x.x, released xxxx-xx-xx:
-    * !!! Dependency update !!!
+    !!! Config breakage !!!
+        - The `qtile` entry point doesn't run `qtile start` by default anymore
         - New optional dependency for dbus related features: dbus-next.
           Replaces previous reliance on dbus/Glib and allows qtile to use async
           dbus calls within asyncio's eventloop.
+        - widget.BatteryIcon no longer has a fallback text mode; use
+          widget.Battery instead
     * features
         - added measure_mem and measure_swap attributes to memory widget to allow user to choose measurement units.
         - memory widget can now be displayed with decimal values
+        - new "qtile migrate" command, which will attempt to upgrade previous
+          configs to the current version in the case of qtile API breaks.
+        - A new `reconfigure_screens` config setting. When `True` (default) it
+          hooks `Qtile.reconfigure_screens` to the `screen_change` hook,
+          reconfiguring qtile's screens in response to randr events. This
+          removes the need to restart qtile when adding/removing external
+          monitors.
+    * bugfixes
+        - fix KeyboardLayout widget (xkb-switch is new dependency)
 
 Qtile 0.17.0, released 2021-02-13:
     !!! Python version breakage !!!
@@ -81,6 +93,7 @@ Qtile 0.17.0, released 2021-02-13:
               - validates that qtile can import the config file (e.g. that
                 syntax is correct, ends in a .py extension, etc.)
               - validates Key and Mouse mod/keysym arguments are ok.
+        - Columns layout now enables column swapping by using swap_column_left and swap_column_right
     !!! warning !!!
         - When (re)starting, Qtile passes its state to the new process in a
           file now, where previously it passed state directly as a string. This
